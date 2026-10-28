@@ -1,6 +1,6 @@
 // Deixa o app abrir sem internet. A página vem sempre da internet quando possível (assim as atualizações chegam),
 // e do que ficou guardado quando não há conexão. Os dados (Supabase) nunca passam por aqui.
-const CACHE = 'financas-v1';
+const CACHE = 'financas-v2';
 const ARQUIVOS = ['./', './index.html', './manifest.webmanifest', './icon-192.png', './icon-512.png', './apple-touch-icon.png'];
 
 self.addEventListener('install', e => {
