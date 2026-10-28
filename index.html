@@ -2761,7 +2761,7 @@ function iniciarNuvem() {
     nuvem = window.supabase.createClient(NUVEM.url, NUVEM.chave);
     const { data } = await nuvem.auth.getSession();
     sessao = data.session;
-    nuvem.auth.onAuthStateChange((ev, s2) => { sessao = s2; renderStatus(); });
+    nuvem.auth.onAuthStateChange((ev, s2) => { sessao = s2; renderStatus(); if (ev === 'PASSWORD_RECOVERY') setTimeout(abrirNovaSenha, 300); });
     if (sessao) puxar(); else render();
   };
   s.onerror = () => { syncEstado = 'offline'; renderStatus(); };
@@ -2825,8 +2825,20 @@ function abrirLogin() {
     ${campo('email', 'E-mail', sessao?.user?.email || '', 'type="email" autocomplete="email" inputmode="email" autocapitalize="off" autocorrect="off" spellcheck="false"')}
     ${campo('senha', 'Senha', '', 'type="password" autocomplete="current-password"')}
     <p class="note" id="loginMsg"></p>
-    <div class="actions"><button type="button" class="btn-sec" data-criar>Criar conta</button><button type="button" class="btn-save" data-entrar>Entrar</button></div>`, {
+    <div class="actions"><button type="button" class="btn-sec" data-criar>Criar conta</button><button type="button" class="btn-save" data-entrar>Entrar</button></div>
+    <p class="note" style="text-align:center;margin-top:14px"><a href="#" data-esqueci>Esqueci minha senha</a></p>`, {
     onClick(e) {
+      if (e.target.closest('[data-esqueci]')) {
+        e.preventDefault();
+        const email = $('form').email.value.trim().toLowerCase(), msg = $('loginMsg');
+        if (!email) { msg.textContent = 'Digite o seu e-mail acima e toque de novo em "Esqueci minha senha".'; return; }
+        if (!nuvem) { msg.textContent = 'Sem conexão com a nuvem agora. Tente de novo com internet.'; return; }
+        msg.textContent = 'Aguarde…';
+        nuvem.auth.resetPasswordForEmail(email, { redirectTo: location.origin + location.pathname }).then(({ error }) => {
+          msg.textContent = error ? `Não consegui enviar: ${error.message}` : 'Pronto! Abra o e-mail do Supabase e toque no link. O app vai abrir pedindo a senha nova.';
+        });
+        return;
+      }
       const criar = e.target.closest('[data-criar]'), entrar = e.target.closest('[data-entrar]');
       if (!criar && !entrar) return;
       const f = $('form'), email = f.email.value.trim().toLowerCase(), password = f.senha.value, msg = $('loginMsg');
@@ -2850,6 +2862,26 @@ function abrirLogin() {
     },
   });
 }
+function abrirNovaSenha() {
+  abrirFolha(`
+    ${cabecalho('Senha nova', 'para entrar no CowHand')}
+    ${campo('senha', 'Senha nova (mínimo 6 caracteres)', '', 'type="password" autocomplete="new-password"')}
+    <p class="note" id="senhaMsg"></p>
+    <div class="actions"><button type="button" class="btn-save" data-salvar-senha>Salvar senha</button></div>`, {
+    onClick(e) {
+      if (!e.target.closest('[data-salvar-senha]')) return;
+      const password = $('form').senha.value, msg = $('senhaMsg');
+      if (password.length < 6) { msg.textContent = 'A senha precisa ter pelo menos 6 caracteres.'; return; }
+      msg.textContent = 'Aguarde…';
+      nuvem.auth.updateUser({ password }).then(({ error }) => {
+        if (error) { msg.textContent = `Não consegui salvar: ${error.message}`; return; }
+        fecharFolha(); history.replaceState(null, '', location.pathname); puxar(); render();
+        perguntar('Senha nova salva. Você já está conectado.', 'Ok', true);
+      });
+    },
+  });
+}
+
 async function sairConta() {
   if (!await perguntar('Sair da conta? Os dados continuam neste aparelho, mas deixam de sincronizar até você entrar de novo.', 'Sair')) return;
   await nuvem.auth.signOut(); sessao = null; syncEstado = 'local'; render();

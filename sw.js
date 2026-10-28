@@ -1,6 +1,6 @@
 // Deixa o app abrir sem internet. A página vem sempre da internet quando possível (assim as atualizações chegam),
 // e do que ficou guardado quando não há conexão. Os dados (Supabase) nunca passam por aqui.
-const CACHE = 'financas-v3';
+const CACHE = 'financas-v4';
 const ARQUIVOS = ['./', './index.html', './manifest.webmanifest', './icon-192.png', './icon-512.png', './apple-touch-icon.png'];
 
 self.addEventListener('install', e => {
@@ -18,7 +18,7 @@ self.addEventListener('fetch', e => {
   const url = new URL(r.url);
   if (url.hostname.endsWith('supabase.co')) return;
   if (url.origin === self.location.origin) {
-    e.respondWith(fetch(r).then(res => guardar(r, res)).catch(() => caches.match(r).then(m => m || caches.match('./index.html'))));
+    e.respondWith(fetch(r, { cache: 'no-cache' }).then(res => guardar(r, res)).catch(() => caches.match(r).then(m => m || caches.match('./index.html'))));
     return;
   }
   // biblioteca de sincronização (vem de um site de bibliotecas): usa a guardada, senão baixa
