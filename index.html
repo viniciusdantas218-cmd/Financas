@@ -2822,19 +2822,28 @@ async function enviar() {
 function abrirLogin() {
   abrirFolha(`
     ${cabecalho('Sua conta', 'para sincronizar celular e computador')}
-    ${campo('email', 'E-mail', sessao?.user?.email || '', 'type="email" autocomplete="email" inputmode="email"')}
+    ${campo('email', 'E-mail', sessao?.user?.email || '', 'type="email" autocomplete="email" inputmode="email" autocapitalize="off" autocorrect="off" spellcheck="false"')}
     ${campo('senha', 'Senha', '', 'type="password" autocomplete="current-password"')}
     <p class="note" id="loginMsg"></p>
     <div class="actions"><button type="button" class="btn-sec" data-criar>Criar conta</button><button type="button" class="btn-save" data-entrar>Entrar</button></div>`, {
     onClick(e) {
       const criar = e.target.closest('[data-criar]'), entrar = e.target.closest('[data-entrar]');
       if (!criar && !entrar) return;
-      const f = $('form'), email = f.email.value.trim(), password = f.senha.value, msg = $('loginMsg');
+      const f = $('form'), email = f.email.value.trim().toLowerCase(), password = f.senha.value, msg = $('loginMsg');
       if (!email || !password) { msg.textContent = 'Preencha o e-mail e a senha.'; return; }
       if (!nuvem) { msg.textContent = 'Sem conexão com a nuvem agora. Tente de novo com internet.'; return; }
       msg.textContent = 'Aguarde…';
       (criar ? nuvem.auth.signUp({ email, password }) : nuvem.auth.signInWithPassword({ email, password })).then(({ data, error }) => {
-        if (error) { msg.textContent = criar ? `Não consegui criar a conta: ${error.message}` : 'E-mail ou senha incorretos (ou o e-mail ainda não foi confirmado).'; return; }
+        if (error) {
+          const m = String(error.message || '');
+          msg.textContent = /invalid login/i.test(m) ? 'E-mail ou senha incorretos. Confira se o e-mail é o mesmo do computador e se o corretor do teclado não mudou alguma letra.'
+            : /not confirmed/i.test(m) ? 'Esse e-mail ainda não foi confirmado. Abra o e-mail do Supabase e toque no link de confirmação.'
+            : /signups? not allowed|disabled/i.test(m) ? 'O cadastro de contas novas está desligado. Use "Entrar" com a conta que você já criou.'
+            : /rate|too many/i.test(m) ? 'Muitas tentativas seguidas. Espere alguns minutos e tente de novo.'
+            : /fetch|network/i.test(m) ? 'Sem conexão com a internet agora. Tente de novo com internet.'
+            : `${criar ? 'Não consegui criar a conta' : 'Não consegui entrar'}: ${m}`;
+          return;
+        }
         if (criar && !data.session) { msg.textContent = 'Conta criada! Abra o e-mail de confirmação, toque no link e depois volte aqui e toque em Entrar.'; return; }
         sessao = data.session; fecharFolha(); puxar(); render();
       });
