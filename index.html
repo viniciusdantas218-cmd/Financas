@@ -285,6 +285,13 @@
   .dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 8px; vertical-align: baseline; }
   .row.sel { background: var(--surface-2); }
   .xcat input { width: 100%; min-width: 0; padding: 9px 8px; margin: 0 0 6px; border-radius: 10px; border: 1px solid var(--line); background: var(--bg); font-size: 15px; }
+  .card.ent { background: color-mix(in oklab, var(--positive) 13%, var(--surface)); border-color: color-mix(in oklab, var(--positive) 40%, var(--line)); }
+  .card.ent .val { color: var(--positive); }
+  .card.sai { background: color-mix(in oklab, var(--negative) 11%, var(--surface)); border-color: color-mix(in oklab, var(--negative) 38%, var(--line)); }
+  .card.sai .val { color: var(--negative); }
+  .card.tot { background: var(--accent); border-color: var(--accent); }
+  .card.tot .lbl { color: var(--on-accent); opacity: .75; }
+  .card.tot .val { color: var(--on-accent); }
   .big2 { font-size: 22px; font-weight: 700; letter-spacing: -0.01em; }
 </style>
 </head>
@@ -883,9 +890,9 @@ function renderC6Resumo(ym, m) {
   return `
     ${boxCarteira()}
     <div class="cards">
-      <div class="card"><div class="lbl">Entradas</div><div class="val num">${money(m.entradas)}</div></div>
-      <div class="card"><div class="lbl">Saídas</div><div class="val num">${money(m.saidas)}</div></div>
-      <div class="card hl"><div class="lbl">Total</div><div class="val num" ${neg(m.total)}>${money(m.total)}</div></div>
+      <div class="card ent"><div class="lbl">Entradas</div><div class="val num">${money(m.entradas)}</div></div>
+      <div class="card sai"><div class="lbl">Saídas</div><div class="val num">${money(m.saidas)}</div></div>
+      <div class="card hl tot"><div class="lbl">Total</div><div class="val num" ${neg(m.total)}>${money(m.total)}</div></div>
     </div>
 
     <section class="box"><header><h2>Entradas</h2></header><div class="rows">
@@ -962,8 +969,14 @@ function renderC6Gastos(ym, m) {
     ? (x.informado ? `${x.sessoes} sessões × ${money(x.valorSessao)} · ${x.f.forma}` : `informe as sessões · ${x.f.forma}`)
     : `valor fixo · ${x.f.forma}`;
   return `
-    <section class="box"><header><h2>Fixos de ${nomeMes(ym)}<small>toque para informar o valor do mês</small></h2><button class="add ghost" data-c6="fixo-novo">+ Fixo</button></header>
-      ${m.fixosLista.length ? `<div class="rows">${m.fixosLista.map(x => linhaC6(esc(x.f.nome), subFixo(x), x.conta ? money(x.valor) : '–', `data-c6="fixo" data-rid="${x.f.id}"`)).join('')}
+    <section class="box"><header><h2>Fixos de ${nomeMes(ym)}<small>toque em "Paguei" quando pagar: sai do saldo da carteira</small></h2><button class="add ghost" data-c6="fixo-novo">+ Fixo</button></header>
+      ${m.fixosLista.length ? `<div class="rows">${m.fixosLista.map(x => {
+        const pago = state.c6.fixosMes[ym]?.[x.f.id]?.pago, podePagar = ym <= hojeISO().slice(0, 7);
+        return `<div class="row click" data-c6="fixo" data-rid="${x.f.id}">
+          <div class="t">${esc(x.f.nome)}<small>${subFixo(x)}${pago ? ` · <b class="pos">✓ pago em ${dataCurta(pago.data).slice(0, 5)}</b>` : ''}</small></div>
+          ${podePagar ? `<button type="button" class="mini ${pago ? '' : 'pay'}" data-c6="fixo-pagar" data-rid="${x.f.id}">${pago ? 'Pago' : 'Paguei'}</button>` : ''}
+          <div class="v num">${x.conta ? money(pago ? pago.valor : x.valor) : '–'}</div><span class="go">›</span></div>`;
+      }).join('')}
         ${linhaC6('Total dos fixos', '', money(m.totFixos), '', 'tot')}</div>` : `<div class="empty">Nenhum fixo vale neste mês.</div>`}
     </section>
     <section class="box"><header><h2>Outros gastos<small>Pix e débito avulsos</small></h2><button class="add" data-c6="gasto-novo">+ Gasto</button></header>
@@ -979,9 +992,9 @@ function renderC6Ano() {
   const cell = (m, f, cls) => m.antes && !m.temDados ? '<td class="num mut">–</td>' : `<td class="num ${cls || ''}">${f(m) ? num(f(m)) : '–'}</td>`;
   return `
     <div class="cards">
-      <div class="card"><div class="lbl">Entradas ${view.ano}</div><div class="val num">${money(tEnt)}</div></div>
-      <div class="card"><div class="lbl">Saídas ${view.ano}</div><div class="val num">${money(tSai)}</div></div>
-      <div class="card hl"><div class="lbl">Total ${view.ano}</div><div class="val num" ${tTot < 0 ? 'style="color:var(--negative)"' : ''}>${money(tTot)}</div></div>
+      <div class="card ent"><div class="lbl">Entradas ${view.ano}</div><div class="val num">${money(tEnt)}</div></div>
+      <div class="card sai"><div class="lbl">Saídas ${view.ano}</div><div class="val num">${money(tSai)}</div></div>
+      <div class="card hl tot"><div class="lbl">Total ${view.ano}</div><div class="val num" ${tTot < 0 ? 'style="color:var(--negative)"' : ''}>${money(tTot)}</div></div>
     </div>
     <p class="hint">Meses antes de ${rotuloYm(state.c6.inicio)} só entram aqui se você já preencheu algo neles. Arraste para o lado para ver os meses.</p>
     <section class="tbl scroll-x"><table class="year-grid">
@@ -1028,8 +1041,9 @@ function abrirExtras(ym) {
     <p style="margin:0 0 14px"><button type="button" class="mini" data-xadd>+ Adicionar linha</button></p>
     <div class="actions"><button type="submit" class="btn-save">Salvar</button></div>`, {
     onSubmit() {
+      const velhos = Object.fromEntries(state.c6.extras.map(e => [e.id, e]));
       const novos = [...$('xlinhas').querySelectorAll('.xrow')].map(r => ({
-        id: r.dataset.xid || uid(), data: r.dataset.xdata || dataPadrao(),
+        id: r.dataset.xid || uid(), data: r.dataset.xdata || dataPadrao(), criado: velhos[r.dataset.xid]?.criado || agoraISO(),
         valor: parseBRL(r.querySelector('[name=v]').value), quem: r.querySelector('[name=q]').value.trim(), obs: r.querySelector('[name=o]').value.trim(),
       })).filter(e => e.valor || e.quem || e.obs);
       state.c6.extras = [...state.c6.extras.filter(e => !e.data.startsWith(ym)), ...novos];
@@ -1085,7 +1099,7 @@ function abrirGasto(e) {
     ${botoesSheet(e)}`, {
     onInput: mostrarNovaCat,
     onSubmit() {
-      const f = $('form'), cat = lerCat(f), n = { id: x.id, desc: f.desc.value.trim(), valor: parseBRL(f.valor.value), data: f.data.value || hojeISO(), cat, forma: f.forma.value, toca: f.toca.checked };
+      const f = $('form'), cat = lerCat(f), n = { id: x.id, desc: f.desc.value.trim(), valor: parseBRL(f.valor.value), data: f.data.value || hojeISO(), cat, forma: f.forma.value, toca: f.toca.checked, criado: x.criado || agoraISO() };
       if (!cat) return f.novaCat.focus();
       if (!n.valor) return f.valor.focus();
       const l = state.c6.gastos, i = l.findIndex(y => y.id === n.id);
@@ -1256,6 +1270,11 @@ function mostrarPreviaFatura() {
   });
 }
 
+// Algo mexe no saldo se aconteceu DEPOIS do saldo informado: em dia posterior, ou no mesmo dia mas lançado depois
+// (k.em = hora em que você informou o saldo; criado = hora em que o lançamento foi feito)
+const agoraISO = () => new Date().toISOString();
+const depoisDaAncora = (k, data, criado) => data > k.data || (data === k.data && !!criado && !!k.em && criado > k.em);
+
 // ----- Carteira / saldo do C6 -----
 // O saldo é "de caixa": você informa quanto tem numa data e o app soma o que acontece DEPOIS dela
 // (entradas, Pix e débito, pró-labore, pagamento de faturas). O resto do app conta por mês de competência.
@@ -1271,29 +1290,37 @@ function c6Faturas() {
   return faturas;
 }
 
+// Fixos do mês atual que ainda não foram marcados como pagos
+function fixosAPagar() {
+  const ym = hojeISO().slice(0, 7);
+  return c6Base(ym).fixos.filter(x => x.valor > 0 && !(state.c6.fixosMes[ym]?.[x.f.id]?.pago)).map(x => ({ ...x, ym }));
+}
+
 function c6Caixa() {
   const c = state.c6, A = state.conta, k = c.carteira;
   if (!k) return null;
   const hoje = hojeISO(), movs = [];
-  const add = (data, desc, valor) => { if (data && data > k.data && data <= hoje && valor) movs.push({ data, desc, valor }); };
-  c.extras.forEach(e => add(e.data, `Extra · ${e.quem || 'sem nome'}`, e.valor));
+  const add = (data, desc, valor, criado) => { if (data && depoisDaAncora(k, data, criado) && data <= hoje && valor) movs.push({ data, desc, valor }); };
+  c.extras.forEach(e => add(e.data, `Extra · ${e.quem || 'sem nome'}`, e.valor, e.criado));
   A.lancamentos.forEach(l => {
-    if (l.tipo === 'prolabore') add(l.data, 'Pró-labore', l.valor);
-    else if (l.tipo === 'lucros') add(l.data, 'Divisão de lucros', l.valor);
-    else if (['imposto_bolso', 'inss_bolso', 'contador_bolso', 'aporte'].includes(l.tipo)) add(l.data, `Toca Lab do seu bolso · ${TIPOS_LANC[l.tipo][0]}`, -l.valor);
+    if (l.tipo === 'prolabore') add(l.data, 'Pró-labore', l.valor, l.criado);
+    else if (l.tipo === 'lucros') add(l.data, 'Divisão de lucros', l.valor, l.criado);
+    else if (['imposto_bolso', 'inss_bolso', 'contador_bolso', 'aporte'].includes(l.tipo)) add(l.data, `Toca Lab do seu bolso · ${TIPOS_LANC[l.tipo][0]}`, -l.valor, l.criado);
   });
   Object.values(A.pagamentos).filter(p => p.origem === 'pessoal').forEach(p => add(p.data, `Toca Lab do seu bolso · ${p.nome}`, -p.valor));
   if (!state.exemplo) state.projetos.filter(p => p.tipo === 'sem' && p.recebido && p.dataRecebido).forEach(p => add(p.dataRecebido, `Projeto · ${p.nome}`, calc(p).liquido));
-  c.gastos.forEach(g => add(g.data, g.desc || 'Pix/débito', -g.valor));
-  // fixos não têm dia: saem do saldo no último dia do mês
-  mesesEntre(k.data.slice(0, 7), hoje.slice(0, 7)).forEach(ym => c6Base(ym).fixos.forEach(x => add(ultimoDia(ym), `Fixo · ${x.f.nome}`, -x.valor)));
-  Object.entries(c.pagas).forEach(([id, p]) => add(p.data, `Fatura ${id.startsWith('c6') ? 'C6' : 'Itaú'} paga`, -p.valor));
+  c.gastos.forEach(g => add(g.data, g.desc || 'Pix/débito', -g.valor, g.criado));
+  // fixos saem do saldo quando você toca em "Paguei" (na data do pagamento)
+  Object.entries(c.fixosMes).forEach(([ym, fm]) => Object.entries(fm).forEach(([id, v]) => {
+    if (v && v.pago) add(v.pago.data, `Fixo · ${(c.fixos.find(f => f.id === id) || {}).nome || 'fixo'} (${nomeMes(ym)})`, -v.pago.valor, v.pago.criado);
+  }));
+  Object.entries(c.pagas).forEach(([id, p]) => add(p.data, `Fatura ${id.startsWith('c6') ? 'C6' : 'Itaú'} paga`, -p.valor, p.criado));
   movs.sort((a, b) => b.data.localeCompare(a.data));
   const saldo = round2(k.saldo + sum(movs.map(m => m.valor)));
 
-  const faturas = c6Faturas();
-  const aPagar = sum(faturas.filter(f => !f.aberta && !f.paga).map(f => f.valor));
-  return { saldo, movs, faturas, aPagar, depois: round2(saldo - aPagar), ancora: k };
+  const faturas = c6Faturas(), fixosPend = fixosAPagar();
+  const aPagar = round2(sum(faturas.filter(f => !f.aberta && !f.paga).map(f => f.valor)) + sum(fixosPend.map(x => x.valor)));
+  return { saldo, movs, faturas, fixosPend, aPagar, depois: round2(saldo - aPagar), ancora: k };
 }
 
 function boxCarteira() {
@@ -1315,13 +1342,14 @@ function boxCarteira() {
     <section class="box"><header><h2>Carteira C6<small>saldo informado em ${dataCurta(cx.ancora.data)} + o que aconteceu depois</small></h2><button class="add ghost" data-c6="saldo">Atualizar saldo</button></header>
       <div class="kpi"><div class="big ${cx.saldo < 0 ? 'neg' : ''}" style="font-size:30px">${money(cx.saldo)}</div>
         <p>${cx.movs.length ? `${cx.movs.length} ${cx.movs.length === 1 ? 'movimento' : 'movimentos'} desde o saldo informado · <a href="#" data-c6="movs">ver</a>` : 'Nenhum movimento depois do saldo informado.'}</p></div>
-      ${cx.faturas.length ? `<div class="rows" style="border-top:1px solid var(--line)">${cx.faturas.map(linhaFat).join('')}
-        ${cx.aPagar ? linhaC6('Depois de pagar as faturas fechadas', `${money(cx.aPagar)} a pagar`, money(cx.depois), '', 'tot') : ''}</div>` : ''}
+      ${cx.faturas.length || cx.fixosPend.length ? `<div class="rows" style="border-top:1px solid var(--line)">${cx.faturas.map(linhaFat).join('')}
+        ${cx.fixosPend.map(x => `<div class="row click" data-c6="fixo-pagar" data-rid="${x.f.id}"><div class="t">${esc(x.f.nome)}<small>fixo de ${nomeMes(x.ym)} · a pagar</small></div><div class="v num">${money(x.valor)}</div><span class="mini pay">Paguei</span></div>`).join('')}
+        ${cx.aPagar ? linhaC6('Depois de pagar o que falta', `${money(cx.aPagar)} a pagar (faturas fechadas e fixos do mês)`, money(cx.depois), '', 'tot') : ''}</div>` : ''}
     </section>`;
 }
 
 function abrirSaldo() {
-  const cx = c6Caixa(), abertas = c6Faturas().filter(f => !f.aberta && !f.paga);
+  const cx = c6Caixa(), abertas = c6Faturas().filter(f => !f.aberta && !f.paga && f.valor);
   abrirFolha(`
     ${cabecalho('Saldo da carteira C6', 'Quanto tem na conta agora')}
     <p class="note">${cx
@@ -1329,14 +1357,17 @@ function abrirSaldo() {
       : 'Digite quanto tem no C6. Tudo com data igual ou anterior à data abaixo já é considerado dentro desse saldo; só o que vier depois mexe nele.'}</p>
     ${campoValor('saldo', 'Saldo no app do C6', '')}
     ${campoData('data', 'Saldo de qual dia?', hojeISO())}
-    ${abertas.length ? `<label class="toggle"><span>Esse saldo já é depois de pagar as faturas<small style="display:block;color:var(--muted)">${abertas.map(f => `${f.tipo} ${nomeMes(f.ym)}`).join(' · ')}: marco como pagas e elas não mexem mais no saldo</small></span><input type="checkbox" name="jaPagas" checked></label>` : ''}
+    ${abertas.length || fixosAPagar().length ? `<label class="toggle"><span>Esse saldo já é depois de pagar estas contas<small style="display:block;color:var(--muted)">${[...abertas.map(f => `Fatura ${f.tipo} de ${nomeMes(nextYm(f.ym))}`), ...fixosAPagar().map(x => x.f.nome)].join(' · ')}: marco como pagas e elas não mexem mais no saldo</small></span><input type="checkbox" name="jaPagas" checked></label>` : ''}
     <div class="actions"><button type="submit" class="btn-save">Salvar saldo</button></div>`, {
     onSubmit() {
       const f = $('form'), v = $('form').saldo.value;
       if (!v.trim()) return f.saldo.focus();
       const data = f.data.value || hojeISO();
-      state.c6.carteira = { saldo: parseBRL(v), data };
-      if (f.jaPagas?.checked) abertas.forEach(x => { state.c6.pagas[x.id] = { valor: x.valor, data }; });
+      state.c6.carteira = { saldo: parseBRL(v), data, em: agoraISO() };
+      if (f.jaPagas?.checked) {
+        abertas.forEach(x => { state.c6.pagas[x.id] = { valor: x.valor, data }; });
+        fixosAPagar().forEach(x => { const fm = state.c6.fixosMes[x.ym] ||= {}; fm[x.f.id] = { ...fm[x.f.id], pago: { valor: x.valor, data } }; });
+      }
       return true;
     },
   });
@@ -1347,7 +1378,7 @@ function abrirMovsCaixa() {
   abrirFolha(`
     ${cabecalho('O que mexeu no saldo', `desde o saldo de ${money(cx.ancora.saldo)} em ${dataCurta(cx.ancora.data)}`)}
     <div class="rows" style="padding:0">${cx.movs.map(m => `<div class="row"><div class="t">${esc(m.desc)}<small>${dataCurta(m.data).slice(0, 5)}</small></div><div class="v num ${m.valor > 0 ? 'pos' : ''}">${m.valor > 0 ? '+' : '−'} ${money(Math.abs(m.valor))}</div></div>`).join('') || '<div class="empty">Nada ainda.</div>'}</div>
-    <p class="note" style="margin-top:10px">Compras no cartão só saem do saldo quando você marca a fatura como paga. Os fixos saem no último dia do mês.</p>`, {});
+    <p class="note" style="margin-top:10px">Compras no cartão só saem do saldo quando você marca a fatura como paga, e os fixos quando você toca em "Paguei" neles.</p>`, {});
 }
 
 function abrirPagarFatura(f) {
@@ -1358,11 +1389,48 @@ function abrirPagarFatura(f) {
     onSubmit() {
       const g = $('form'), v = parseBRL(g.valor.value);
       if (!v) return g.valor.focus();
-      state.c6.pagas[f.id] = { valor: v, data: g.data.value || hojeISO() };
+      state.c6.pagas[f.id] = { valor: v, data: g.data.value || hojeISO(), criado: agoraISO() };
       return true;
     },
     onClick(e) {
       if (e.target.closest('[data-desfazer]')) { delete state.c6.pagas[f.id]; return true; }
+    },
+  });
+}
+
+// "Paguei" de um fixo: guarda o valor do mês e a data em que saiu do C6
+function abrirPagarFixo(f, ym) {
+  if (!f) return;
+  const fm0 = state.c6.fixosMes[ym]?.[f.id], pago = fm0?.pago, v = fixoMes(f, ym), sessao = f.modo === 'sessao';
+  abrirFolha(`
+    ${cabecalho(esc(f.nome), `${nomeMes(ym)} · ${pago ? `pago em ${dataCurta(pago.data)}` : 'sai do saldo do C6'}`)}
+    ${sessao ? `<div class="grid2">${campo('sessoes', 'Sessões no mês', v.sessoes || '', 'inputmode="numeric" placeholder="0"')}${campoValor('valorSessao', 'Valor da sessão', v.valorSessao)}</div>`
+      : campoValor('valor', 'Valor pago', pago ? pago.valor : v.valor)}
+    ${campoData('data', 'Data do pagamento', pago ? pago.data : (ym === hojeISO().slice(0, 7) ? hojeISO() : ultimoDia(ym)))}
+    <div class="fech" id="pagoTotal"></div>
+    <div class="actions">${pago ? '<button type="button" class="btn-del" data-desfazer>Desfazer</button>' : ''}<button type="submit" class="btn-save">${pago ? 'Salvar' : 'Marcar como pago'}</button></div>`, {
+    onInput() {
+      const g = $('form'), tot = sessao ? round2((parseInt(g.sessoes.value) || 0) * parseBRL(g.valorSessao.value)) : parseBRL(g.valor.value);
+      $('pagoTotal').innerHTML = `<div class="r res"><span>Sai da carteira</span><span class="num">${money(tot)}</span></div>`;
+    },
+    onSubmit() {
+      const g = $('form'), fm = state.c6.fixosMes[ym] ||= {}, data = g.data.value || hojeISO();
+      let tot;
+      if (sessao) {
+        const ses = parseInt(g.sessoes.value) || 0, vs = parseBRL(g.valorSessao.value);
+        tot = round2(ses * vs);
+        fm[f.id] = { ...fm[f.id], sessoes: ses, valorSessao: vs };
+        if (vs) f.valor = vs;
+      } else {
+        tot = parseBRL(g.valor.value);
+        fm[f.id] = { ...fm[f.id], valor: tot };
+      }
+      if (!tot) return (sessao ? g.sessoes : g.valor).focus();
+      fm[f.id].pago = { valor: tot, data, criado: pago?.criado || agoraISO() };
+      return true;
+    },
+    onClick(e) {
+      if (e.target.closest('[data-desfazer]')) { const fm = state.c6.fixosMes[ym]; delete fm[f.id].pago; return true; }
     },
   });
 }
@@ -1386,9 +1454,9 @@ function abrirFixoMes(f, ym) {
       const f2 = $('form'), fm = state.c6.fixosMes[ym] ||= {};
       if (sessao) {
         const vs = parseBRL(f2.valorSessao.value);
-        fm[f.id] = { sessoes: parseInt(f2.sessoes.value) || 0, valorSessao: vs };
+        fm[f.id] = { ...fm[f.id], sessoes: parseInt(f2.sessoes.value) || 0, valorSessao: vs };
         if (vs) f.valor = vs; // lembra o valor da sessão para os próximos meses
-      } else fm[f.id] = { valor: parseBRL(f2.valor.value) };
+      } else fm[f.id] = { ...fm[f.id], valor: parseBRL(f2.valor.value) };
       return true;
     },
     onClick(e) { if (e.target.closest('[data-edit]')) { abrirFixo(f); return false; } },
@@ -1474,6 +1542,7 @@ function c6Acao(a, id) {
     case 'gasto': return abrirGasto(c.gastos.find(x => x.id === id));
     case 'fixo-novo': return abrirFixo(null);
     case 'fixo': return abrirFixoMes(c.fixos.find(x => x.id === id), ym);
+    case 'fixo-pagar': return abrirPagarFixo(c.fixos.find(x => x.id === id), ym);
   }
 }
 
@@ -1524,13 +1593,13 @@ function poupCaixa() {
   const p = state.poup, k = p.carteira;
   if (!k) return null;
   const hoje = hojeISO(), movs = [];
-  const add = (data, desc, valor) => { if (data && data > k.data && data <= hoje && valor) movs.push({ data, desc, valor }); };
+  const add = (data, desc, valor, criado) => { if (data && depoisDaAncora(k, data, criado) && data <= hoje && valor) movs.push({ data, desc, valor }); };
   Object.entries(p.musica).forEach(([ym, mu]) => {
-    const total = sum(FONTES_MUSICA.map(([f]) => mu[f] || 0)); add(mu.data || ultimoDia(ym), `Música · ${nomeMes(ym)}`, total);
+    const total = sum(FONTES_MUSICA.map(([f]) => mu[f] || 0)); add(mu.data || ultimoDia(ym), `Música · ${nomeMes(ym)}`, total, mu.criado);
   });
-  p.gastos.forEach(g => add(g.data, g.desc || 'Gasto extra', -g.valor));
-  p.extras.forEach(e => add(e.data, e.desc || 'Entrada extra', e.valor));
-  Object.entries(p.rendimentos).forEach(([ym, r]) => add(r.data || ultimoDia(ym), 'Rendimento', r.valor));
+  p.gastos.forEach(g => add(g.data, g.desc || 'Gasto extra', -g.valor, g.criado));
+  p.extras.forEach(e => add(e.data, e.desc || 'Entrada extra', e.valor, e.criado));
+  Object.entries(p.rendimentos).forEach(([ym, r]) => add(r.data || ultimoDia(ym), 'Rendimento', r.valor, r.criado));
   mesesEntre(k.data.slice(0, 7), hoje.slice(0, 7)).forEach(ym => { // taxa e plano saem no último dia do mês
     const m = poupMes(ym); add(ultimoDia(ym), 'Taxa mensal', -m.taxa.valor); add(ultimoDia(ym), 'Plano de saúde', -m.plano.valor);
   });
@@ -1570,9 +1639,9 @@ function renderPoupResumo(ym, m) {
   return `
     ${boxSaldoPoup()}
     <div class="cards">
-      <div class="card"><div class="lbl">Entradas</div><div class="val num">${money(m.entradas)}</div></div>
-      <div class="card"><div class="lbl">Saídas</div><div class="val num">${money(m.saidas)}</div></div>
-      <div class="card hl"><div class="lbl">Total do mês</div><div class="val num" ${neg(m.total)}>${money(m.total)}</div></div>
+      <div class="card ent"><div class="lbl">Entradas</div><div class="val num">${money(m.entradas)}</div></div>
+      <div class="card sai"><div class="lbl">Saídas</div><div class="val num">${money(m.saidas)}</div></div>
+      <div class="card hl tot"><div class="lbl">Total do mês</div><div class="val num" ${neg(m.total)}>${money(m.total)}</div></div>
     </div>
 
     <section class="box"><header><h2>Entradas</h2></header><div class="rows">
@@ -1628,9 +1697,9 @@ function renderPoupAno() {
   return `
     ${boxSaldoPoup()}
     <div class="cards">
-      <div class="card"><div class="lbl">Entradas ${view.ano}</div><div class="val num">${money(tEnt)}</div></div>
-      <div class="card"><div class="lbl">Saídas ${view.ano}</div><div class="val num">${money(tSai)}</div></div>
-      <div class="card hl"><div class="lbl">Total ${view.ano}</div><div class="val num" ${tTot < 0 ? 'style="color:var(--negative)"' : ''}>${money(tTot)}</div></div>
+      <div class="card ent"><div class="lbl">Entradas ${view.ano}</div><div class="val num">${money(tEnt)}</div></div>
+      <div class="card sai"><div class="lbl">Saídas ${view.ano}</div><div class="val num">${money(tSai)}</div></div>
+      <div class="card hl tot"><div class="lbl">Total ${view.ano}</div><div class="val num" ${tTot < 0 ? 'style="color:var(--negative)"' : ''}>${money(tTot)}</div></div>
     </div>
     <p class="hint">Rendimento no ano: ${money(tRend)}. Meses antes de ${rotuloYm(state.poup.inicio)} só entram aqui se você já preencheu algo neles. Arraste para o lado.</p>
     <section class="tbl scroll-x"><table class="year-grid">
@@ -1687,8 +1756,9 @@ function abrirTabelaPoup(tipo, ym, raiz = state.poup, cfg = null) {
     <p style="margin:0 0 14px"><button type="button" class="mini" data-xadd>+ Adicionar linha</button></p>
     <div class="actions"><button type="submit" class="btn-save">Salvar</button></div>`, {
     onSubmit() {
+      const velhos = Object.fromEntries(lista.map(e => [e.id, e]));
       const novos = [...$('xlinhas').querySelectorAll('.xitem')].map(r => ({
-        id: r.dataset.xid || uid(), data: r.dataset.xdata || dataPadrao(),
+        id: r.dataset.xid || uid(), data: r.dataset.xdata || dataPadrao(), criado: velhos[r.dataset.xid]?.criado || agoraISO(),
         valor: parseBRL(r.querySelector('[name=v]').value), desc: r.querySelector('[name=q]').value.trim(), obs: r.querySelector('[name=o]').value.trim(),
         ...(gasto ? { toca: !!r.querySelector('[name=t]')?.checked, cat: r.querySelector('[name=c]').value.trim() } : {}),
       })).filter(e => e.valor || e.desc || e.obs);
@@ -1743,7 +1813,7 @@ function abrirSaldoPoup() {
     <div class="actions"><button type="submit" class="btn-save">Salvar saldo</button></div>`, {
     onSubmit() {
       const f = $('form'); if (!f.saldo.value.trim()) return f.saldo.focus();
-      state.poup.carteira = { saldo: parseBRL(f.saldo.value), data: f.data.value || hojeISO() };
+      state.poup.carteira = { saldo: parseBRL(f.saldo.value), data: f.data.value || hojeISO(), em: agoraISO() };
       return true;
     },
   });
@@ -2044,11 +2114,11 @@ function dumboCaixa() {
   const d = state.dumbo, k = d.carteira;
   if (!k) return null;
   const hoje = hojeISO(), movs = [];
-  const add = (data, desc, valor) => { if (data && data > k.data && data <= hoje && valor) movs.push({ data, desc, valor }); };
-  d.entradas.forEach(x => add(x.data, `Pagamento · ${x.desc || 'Dumbo'}`, x.valor));
-  d.creditos.forEach(x => add(x.data, `Créditos · ${x.desc || 'compra extra'}`, -x.valor));
-  d.gastos.forEach(x => add(x.data, x.desc || 'Gasto geral', -x.valor));
-  Object.entries(d.rendimentos).forEach(([ym, r]) => add(r.data || ultimoDia(ym), 'Rendimento', r.valor));
+  const add = (data, desc, valor, criado) => { if (data && depoisDaAncora(k, data, criado) && data <= hoje && valor) movs.push({ data, desc, valor }); };
+  d.entradas.forEach(x => add(x.data, `Pagamento · ${x.desc || 'Dumbo'}`, x.valor, x.criado));
+  d.creditos.forEach(x => add(x.data, `Créditos · ${x.desc || 'compra extra'}`, -x.valor, x.criado));
+  d.gastos.forEach(x => add(x.data, x.desc || 'Gasto geral', -x.valor, x.criado));
+  Object.entries(d.rendimentos).forEach(([ym, r]) => add(r.data || ultimoDia(ym), 'Rendimento', r.valor, r.criado));
   mesesEntre(k.data.slice(0, 7), hoje.slice(0, 7)).forEach(ym => dumboMes(ym).recs.forEach(x => add(ultimoDia(ym), x.c.nome, -x.valor)));
   movs.sort((a, b) => b.data.localeCompare(a.data));
   return { saldo: round2(k.saldo + sum(movs.map(m => m.valor))), movs, ancora: k };
@@ -2082,9 +2152,9 @@ function renderDumboResumo(ym, m) {
   return `
     ${boxSaldoDumbo()}
     <div class="cards">
-      <div class="card"><div class="lbl">Entradas</div><div class="val num">${money(m.totEntradas)}</div></div>
-      <div class="card"><div class="lbl">Saídas</div><div class="val num">${money(m.saidas)}</div></div>
-      <div class="card hl"><div class="lbl">Total do mês</div><div class="val num" ${neg(m.total)}>${money(m.total)}</div></div>
+      <div class="card ent"><div class="lbl">Entradas</div><div class="val num">${money(m.totEntradas)}</div></div>
+      <div class="card sai"><div class="lbl">Saídas</div><div class="val num">${money(m.saidas)}</div></div>
+      <div class="card hl tot"><div class="lbl">Total do mês</div><div class="val num" ${neg(m.total)}>${money(m.total)}</div></div>
     </div>
 
     <section class="box"><header><h2>Entrada</h2></header><div class="rows">
@@ -2132,9 +2202,9 @@ function renderDumboAno() {
   return `
     ${boxSaldoDumbo()}
     <div class="cards">
-      <div class="card"><div class="lbl">Entradas ${view.ano}</div><div class="val num">${money(tEnt)}</div></div>
-      <div class="card"><div class="lbl">Saídas ${view.ano}</div><div class="val num">${money(tSai)}</div></div>
-      <div class="card hl"><div class="lbl">Total ${view.ano}</div><div class="val num" ${tTot < 0 ? 'style="color:var(--negative)"' : ''}>${money(tTot)}</div></div>
+      <div class="card ent"><div class="lbl">Entradas ${view.ano}</div><div class="val num">${money(tEnt)}</div></div>
+      <div class="card sai"><div class="lbl">Saídas ${view.ano}</div><div class="val num">${money(tSai)}</div></div>
+      <div class="card hl tot"><div class="lbl">Total ${view.ano}</div><div class="val num" ${tTot < 0 ? 'style="color:var(--negative)"' : ''}>${money(tTot)}</div></div>
     </div>
     <p class="hint">Rendimento no ano: ${money(tRend)}. Arraste para o lado para ver os meses.</p>
     <section class="tbl scroll-x"><table class="year-grid">
@@ -2214,7 +2284,7 @@ function abrirSaldoDumbo() {
     <div class="actions"><button type="submit" class="btn-save">Salvar saldo</button></div>`, {
     onSubmit() {
       const f = $('form'); if (!f.saldo.value.trim()) return f.saldo.focus();
-      state.dumbo.carteira = { saldo: parseBRL(f.saldo.value), data: f.data.value || hojeISO() };
+      state.dumbo.carteira = { saldo: parseBRL(f.saldo.value), data: f.data.value || hojeISO(), em: agoraISO() };
       return true;
     },
   });
@@ -3418,7 +3488,7 @@ function abrirLancamento(tipo, existente) {
     },
     onSubmit() {
       const f = $('form');
-      const novo = { id: l.id || uid(), tipo: f.tipo.value, valor: parseBRL(f.valor.value), data: f.data.value || hojeISO(), obs: f.obs.value.trim() };
+      const novo = { id: l.id || uid(), tipo: f.tipo.value, valor: parseBRL(f.valor.value), data: f.data.value || hojeISO(), obs: f.obs.value.trim(), criado: l.criado || agoraISO() };
       if (!novo.valor) return f.valor.focus();
       const ls = state.conta.lancamentos, i = ls.findIndex(x => x.id === novo.id);
       const gravar = () => { if (i >= 0) ls[i] = novo; else ls.push(novo); };
