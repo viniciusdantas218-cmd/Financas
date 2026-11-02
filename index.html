@@ -285,13 +285,11 @@
   .dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 8px; vertical-align: baseline; }
   .row.sel { background: var(--surface-2); }
   .xcat input { width: 100%; min-width: 0; padding: 9px 8px; margin: 0 0 6px; border-radius: 10px; border: 1px solid var(--line); background: var(--bg); font-size: 15px; }
-  .card.ent { background: color-mix(in oklab, var(--positive) 13%, var(--surface)); border-color: color-mix(in oklab, var(--positive) 40%, var(--line)); }
-  .card.ent .val { color: var(--positive); }
-  .card.sai { background: color-mix(in oklab, var(--negative) 11%, var(--surface)); border-color: color-mix(in oklab, var(--negative) 38%, var(--line)); }
-  .card.sai .val { color: var(--negative); }
-  .card.tot { background: var(--accent); border-color: var(--accent); }
-  .card.tot .lbl { color: var(--on-accent); opacity: .75; }
-  .card.tot .val { color: var(--on-accent); }
+  /* Entradas / Saídas / Total: cartões creme (cor do tema); só o valor muda de cor */
+  .card.ent, .card.sai, .card.tot { background: oklch(0.9876 0.0085 67.7269); border-color: oklch(0.90 0.02 67); }
+  .card.ent .lbl, .card.sai .lbl, .card.tot .lbl { color: oklch(0.45 0.01 60); }
+  .card.ent .val, .card.tot .val { color: #1f8a4c; }
+  .card.sai .val, .card.tot .val[style*="negative"] { color: oklch(0.5809 0.2382 28.9547) !important; }
   .big2 { font-size: 22px; font-weight: 700; letter-spacing: -0.01em; }
 </style>
 </head>
