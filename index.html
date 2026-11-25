@@ -716,6 +716,11 @@ function fixoMes(f, ym) {
   return { valor: m?.valor ?? f.valor ?? 0, informado: !!m };
 }
 
+// Pró-labore de um mês: o valor ajustado só para aquele mês, ou o das Configurações
+const prolaboreDo = ym => state.conta.ajustes[ym]?.prolabore ?? state.conta.cfg.prolabore;
+// ...e o do mês de competência de um pagamento (o que cai até o "dia de corte" é do mês anterior)
+const prolaboreDaData = d => prolaboreDo(+d.slice(8) <= (state.c6?.diaCorte ?? 5) ? prevYm(d.slice(0, 7)) : d.slice(0, 7));
+
 // Pró-labore e lucros contam no mês de COMPETÊNCIA: o que cai até o "dia de corte" (padrão 5) é do mês anterior.
 // Vários pró-labores pagos juntos são distribuídos nos meses anteriores (um por mês).
 function c6Competencia(l) {
@@ -3161,15 +3166,16 @@ function renderContaMes(ym) {
       : `<span class="bad">Diferença de ${money(dif)}</span> na conferência de ${dataCurta(ultimaConf.data)}`;
   }
 
-  // Pró-labore
-  const qtd = r.seu > 0 ? Math.floor(r.seu / cfg.prolabore) : 0;
-  const resto = r.seu > 0 ? round2(r.seu - qtd * cfg.prolabore) : r.seu;
-  const prog = Math.max(0, Math.min(100, resto / cfg.prolabore * 100));
+  // Pró-labore (o deste mês: ajustado só para ele, ou o das Configurações)
+  const pl = prolaboreDo(ym), plAjustado = state.conta.ajustes[ym]?.prolabore !== undefined;
+  const qtd = r.seu > 0 ? Math.floor(r.seu / pl) : 0;
+  const resto = r.seu > 0 ? round2(r.seu - qtd * pl) : r.seu;
+  const prog = Math.max(0, Math.min(100, resto / pl * 100));
   const textoPL = r.seu < 0
     ? `Seu líquido está negativo: o que a empresa já pagou (pró-labores, INSS, contador) passou do que entrou de NFs. Se o ponto de partida estiver incompleto, ajuste em Configurações quanto do saldo inicial era seu.`
     : qtd >= 1
       ? `Já dá para retirar <b>${qtd} pró-labore${qtd > 1 ? 's' : ''}</b>. Sobrariam ${money(resto)} acumulados.`
-      : `Faltam <b>${money(cfg.prolabore - resto)}</b> para completar o próximo pró-labore (${money(cfg.prolabore)}).`;
+      : `Faltam <b>${money(pl - resto)}</b> para completar o próximo pró-labore (${money(pl)}).`;
 
   // Colchão
   const pC = Math.max(0, Math.min(100, r.folga / cfg.colchao * 100));
@@ -3244,6 +3250,7 @@ function renderContaMes(ym) {
         <div class="big num ${r.seu < 0 ? 'neg' : 'pos'}">${money(r.seu)}</div>
         <div class="prog"><i style="width:${prog}%"></i></div>
         <p>${textoPL}</p>
+        <p>Pró-labore de ${MESES_LONGOS[+ym.slice(5) - 1]}: <b>${money(pl)}</b>${plAjustado ? ' (só este mês)' : ''} · <a href="#" data-pl-mes="${ym}">mudar só este mês</a></p>
       </div>
       <div class="btns">
         <button class="main" data-lanc="prolabore">Registrar pró-labore</button>
@@ -3459,9 +3466,29 @@ function abrirPagamento(o) {
   });
 }
 
+// ----- Pró-labore de um mês só -----
+function abrirProlaboreMes(ym) {
+  const c = state.conta, ajustado = c.ajustes[ym]?.prolabore !== undefined, nome = MESES_LONGOS[+ym.slice(5) - 1];
+  abrirFolha(`
+    ${cabecalho('Pró-labore deste mês', `${nome} de ${ym.slice(0, 4)}`)}
+    ${campoValor('valor', `Pró-labore de ${nome}`, prolaboreDo(ym))}
+    <p class="note">Vale só para ${nome}. Os outros meses continuam com o valor das Configurações (${money(c.cfg.prolabore)}).</p>
+    <div class="actions">${ajustado ? '<button type="button" class="btn-sec" data-padrao>Voltar ao padrão</button>' : ''}<button type="submit" class="btn-save">Salvar</button></div>`, {
+    onSubmit() {
+      const v = parseBRL($('form').valor.value);
+      if (!v) return $('form').valor.focus();
+      c.ajustes[ym] = { ...c.ajustes[ym], prolabore: v };
+      return true;
+    },
+    onClick(e) {
+      if (e.target.closest('[data-padrao]')) { const a = { ...c.ajustes[ym] }; delete a.prolabore; c.ajustes[ym] = a; return true; }
+    },
+  });
+}
+
 // ----- Lançamento manual -----
 function abrirLancamento(tipo, existente) {
-  const l = existente || { tipo: tipo || 'rendimento', valor: tipo === 'prolabore' ? state.conta.cfg.prolabore : 0, data: dataPadrao(), obs: '' };
+  const l = existente || { tipo: tipo || 'rendimento', valor: tipo === 'prolabore' ? prolaboreDaData(dataPadrao()) : 0, data: dataPadrao(), obs: '' };
   abrirFolha(`
     ${cabecalho(existente ? 'Editar lançamento' : 'Novo lançamento', 'Conta Itaú Empresa')}
     <label class="f"><span>Tipo</span><select name="tipo">${Object.entries(TIPOS_LANC).map(([k, [rot]]) => `<option value="${k}" ${k === l.tipo ? 'selected' : ''}>${rot}</option>`).join('')}</select></label>
@@ -3490,7 +3517,7 @@ function abrirLancamento(tipo, existente) {
     onSubmit() {
       const f = $('form');
       const novo = { id: l.id || uid(), tipo: f.tipo.value, valor: parseBRL(f.valor.value), data: f.data.value || hojeISO(), obs: f.obs.value.trim(), criado: l.criado || agoraISO() };
-      if (novo.tipo === 'prolabore') novo.qtd = l.qtd && l.valor === novo.valor ? l.qtd : Math.max(1, Math.round(novo.valor / state.conta.cfg.prolabore));
+      if (novo.tipo === 'prolabore') novo.qtd = l.qtd && l.valor === novo.valor ? l.qtd : Math.max(1, Math.round(novo.valor / prolaboreDaData(novo.data)));
       if (!novo.valor) return f.valor.focus();
       const ls = state.conta.lancamentos, i = ls.findIndex(x => x.id === novo.id);
       const gravar = () => { if (i >= 0) ls[i] = novo; else ls.push(novo); };
@@ -3697,12 +3724,13 @@ function prepararImport(P) {
     for (const t of por.outro || []) { lanc('saida', -t.valor, t.data, t.memo, { fit: t.fit }); resumo.outros.push(t); }
 
     // 4. Pró-labore e divisão de lucros (os dois PIX para os sócios no mesmo dia)
-    const metade = round2(cfg.prolabore / 2), diaPL = {}, diaLucro = {};
+    const diaPL = {}, diaLucro = {};
     for (const t of por.socio || []) {
+      const metade = round2(prolaboreDaData(t.data) / 2);
       const k = -t.valor / metade, ehPL = Math.abs(k - Math.round(k)) < 0.002 && Math.round(k) >= 1;
       (ehPL ? diaPL : diaLucro)[t.data] = round2(((ehPL ? diaPL : diaLucro)[t.data] || 0) - t.valor);
     }
-    for (const [data, v] of Object.entries(diaPL)) { const n = Math.round(v / cfg.prolabore); lanc('prolabore', v, data, n > 1 ? `${n} pró-labores juntos` : '', { fit: 'imp', qtd: Math.max(1, n) }); resumo.prolabores += Math.max(1, n); }
+    for (const [data, v] of Object.entries(diaPL)) { const n = Math.round(v / prolaboreDaData(data)); lanc('prolabore', v, data, n > 1 ? `${n} pró-labores juntos` : '', { fit: 'imp', qtd: Math.max(1, n) }); resumo.prolabores += Math.max(1, n); }
     for (const [data, v] of Object.entries(diaLucro)) { lanc('lucros', v, data, '', { fit: 'imp' }); resumo.lucros++; }
 
     // 5. Rendimentos (somados por mês) e tarifas
@@ -3949,6 +3977,8 @@ $('main').addEventListener('click', e => {
   }
   if (t.closest('[data-backup]')) { e.preventDefault(); return baixarBackup(); }
   if (t.closest('[data-restaurar]')) { e.preventDefault(); return restaurarBackup(); }
+  const plm = t.closest('[data-pl-mes]');
+  if (plm) { e.preventDefault(); return abrirProlaboreMes(plm.dataset.plMes); }
   const lanc = t.closest('[data-lanc]');
   if (lanc) return abrirLancamento(lanc.dataset.lanc);
   const pagar = t.closest('[data-pagar]');
