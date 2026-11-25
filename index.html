@@ -441,8 +441,18 @@ function c6Vazio() {
 }
 const completaC6 = s => {
   // pró-labores antigos: guarda quantos meses cada um cobre, com o valor do pró-labore de quando foram lançados
-  const plAntigo = s.conta?.cfg?.prolabore;
-  (s.conta?.lancamentos || []).forEach(l => { if (l.tipo === 'prolabore' && !l.qtd) l.qtd = plAntigo ? Math.max(1, Math.round(l.valor / plAntigo)) : 1; });
+  const cfgC = s.conta?.cfg, lancs = (s.conta?.lancamentos || []).filter(l => l.tipo === 'prolabore');
+  if (cfgC && !cfgC.prolaboreHist && lancs.length) {
+    // o valor mais repetido entre os pró-labores já pagos é o que valia antes; se for diferente do atual, o atual vale a partir deste mês
+    const freq = {}; lancs.forEach(l => { const v = round2(l.valor / (l.qtd || 1)); freq[v] = (freq[v] || 0) + 1; });
+    const antigo = +Object.entries(freq).sort((a, b) => b[1] - a[1])[0][0];
+    if (antigo && Math.abs(antigo - cfgC.prolabore) >= 0.01) {
+      cfgC.prolaboreHist = [{ desde: '0000-01', valor: antigo }, { desde: hojeISO().slice(0, 7), valor: cfgC.prolabore }];
+      lancs.forEach(l => { if (l.data < hojeISO().slice(0, 8) + '01') l.qtd = Math.max(1, Math.round(l.valor / antigo)); });
+    }
+  }
+  const plAntigo = cfgC?.prolaboreHist?.[0]?.valor || cfgC?.prolabore;
+  lancs.forEach(l => { if (!l.qtd) l.qtd = plAntigo ? Math.max(1, Math.round(l.valor / plAntigo)) : 1; });
   const antigo = s.c6 && !(s.c6.v >= 2); // primeira versão da aba: ajustes de migração
   const c = s.c6 = { ...c6Vazio(), ...(s.c6 || {}) };
   if (antigo) {
@@ -717,7 +727,22 @@ function fixoMes(f, ym) {
 }
 
 // Pró-labore de um mês: o valor ajustado só para aquele mês, ou o das Configurações
-const prolaboreDo = ym => state.conta.ajustes[ym]?.prolabore ?? state.conta.cfg.prolabore;
+// O valor das Configurações vale a partir do mês em que foi definido (cfg.prolaboreHist: [{ desde, valor }])
+function prolaboreBase(ym) {
+  const h = (state.conta.cfg.prolaboreHist || []).filter(x => x.desde <= ym).sort((a, b) => a.desde.localeCompare(b.desde));
+  return h.length ? h[h.length - 1].valor : state.conta.cfg.prolabore;
+}
+const prolaboreDo = ym => state.conta.ajustes[ym]?.prolabore ?? prolaboreBase(ym);
+// Troca o pró-labore das Configurações só daqui pra frente (os meses anteriores guardam o valor antigo)
+function mudarProlabore(novo) {
+  const cfg = state.conta.cfg, velho = cfg.prolabore, ym = hojeISO().slice(0, 7);
+  if (!novo || novo === velho) return;
+  const h = cfg.prolaboreHist ||= [];
+  if (!h.length) h.push({ desde: '0000-01', valor: velho });
+  const i = h.findIndex(x => x.desde === ym);
+  if (i >= 0) h[i].valor = novo; else h.push({ desde: ym, valor: novo });
+  cfg.prolabore = novo;
+}
 // ...e o do mês de competência de um pagamento (o que cai até o "dia de corte" é do mês anterior)
 const prolaboreDaData = d => prolaboreDo(+d.slice(8) <= (state.c6?.diaCorte ?? 5) ? prevYm(d.slice(0, 7)) : d.slice(0, 7));
 
@@ -2779,7 +2804,8 @@ function abrirValoresToca() {
     <p class="note">Valem para os meses daqui pra frente e para os que não têm um valor próprio. Ajustes de um mês só (ex.: INSS zerado) continuam na aba Toca Lab.</p>
     <div class="actions"><button type="submit" class="btn-save">Salvar</button></div>`, {
     onSubmit() {
-      ['inss', 'prolabore', 'contadorMinimo', 'tarifa', 'colchao'].forEach(k => cfg[k] = parseBRL($('form')[k].value));
+      ['inss', 'contadorMinimo', 'tarifa', 'colchao'].forEach(k => cfg[k] = parseBRL($('form')[k].value));
+      mudarProlabore(parseBRL($('form').prolabore.value));
       cfg.socios = $('form').socios.value.split('\n').map(x => x.trim().toUpperCase()).filter(Boolean);
       return true;
     },
@@ -3599,7 +3625,8 @@ function abrirConfig() {
     onSubmit() {
       const f = $('form');
       c.inicio = { ...ini, data: f.data.value || ini.data, saldo: parseBRL(f.saldo.value), seu: parseBRL(f.seu.value), pendentes: f.pendentes ? parseBRL(f.pendentes.value) : ini.pendentes };
-      ['inss', 'tarifa', 'contadorMinimo', 'prolabore', 'colchao'].forEach(k => cfg[k] = parseBRL(f[k].value));
+      ['inss', 'tarifa', 'contadorMinimo', 'colchao'].forEach(k => cfg[k] = parseBRL(f[k].value));
+      mudarProlabore(parseBRL(f.prolabore.value));
       return true;
     },
     onClick(e) {
