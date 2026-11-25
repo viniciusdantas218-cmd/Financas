@@ -440,6 +440,9 @@ function c6Vazio() {
   };
 }
 const completaC6 = s => {
+  // pró-labores antigos: guarda quantos meses cada um cobre, com o valor do pró-labore de quando foram lançados
+  const plAntigo = s.conta?.cfg?.prolabore;
+  (s.conta?.lancamentos || []).forEach(l => { if (l.tipo === 'prolabore' && !l.qtd) l.qtd = plAntigo ? Math.max(1, Math.round(l.valor / plAntigo)) : 1; });
   const antigo = s.c6 && !(s.c6.v >= 2); // primeira versão da aba: ajustes de migração
   const c = s.c6 = { ...c6Vazio(), ...(s.c6 || {}) };
   if (antigo) {
@@ -719,7 +722,7 @@ function c6Competencia(l) {
   const d = l.data, ym = d.slice(0, 7);
   const comp = +d.slice(8) <= state.c6.diaCorte ? prevYm(ym) : ym;
   if (l.tipo !== 'prolabore') return [[comp, l.valor]];
-  const n = Math.max(1, Math.round(l.valor / state.conta.cfg.prolabore)), out = [];
+  const n = l.qtd || Math.max(1, Math.round(l.valor / state.conta.cfg.prolabore)), out = [];
   for (let i = 0, m = comp; i < n; i++, m = prevYm(m)) out.push([m, round2(l.valor / n)]);
   return out;
 }
@@ -3487,6 +3490,7 @@ function abrirLancamento(tipo, existente) {
     onSubmit() {
       const f = $('form');
       const novo = { id: l.id || uid(), tipo: f.tipo.value, valor: parseBRL(f.valor.value), data: f.data.value || hojeISO(), obs: f.obs.value.trim(), criado: l.criado || agoraISO() };
+      if (novo.tipo === 'prolabore') novo.qtd = l.qtd && l.valor === novo.valor ? l.qtd : Math.max(1, Math.round(novo.valor / state.conta.cfg.prolabore));
       if (!novo.valor) return f.valor.focus();
       const ls = state.conta.lancamentos, i = ls.findIndex(x => x.id === novo.id);
       const gravar = () => { if (i >= 0) ls[i] = novo; else ls.push(novo); };
@@ -3698,7 +3702,7 @@ function prepararImport(P) {
       const k = -t.valor / metade, ehPL = Math.abs(k - Math.round(k)) < 0.002 && Math.round(k) >= 1;
       (ehPL ? diaPL : diaLucro)[t.data] = round2(((ehPL ? diaPL : diaLucro)[t.data] || 0) - t.valor);
     }
-    for (const [data, v] of Object.entries(diaPL)) { const n = Math.round(v / cfg.prolabore); lanc('prolabore', v, data, n > 1 ? `${n} pró-labores juntos` : '', { fit: 'imp' }); resumo.prolabores += Math.max(1, n); }
+    for (const [data, v] of Object.entries(diaPL)) { const n = Math.round(v / cfg.prolabore); lanc('prolabore', v, data, n > 1 ? `${n} pró-labores juntos` : '', { fit: 'imp', qtd: Math.max(1, n) }); resumo.prolabores += Math.max(1, n); }
     for (const [data, v] of Object.entries(diaLucro)) { lanc('lucros', v, data, '', { fit: 'imp' }); resumo.lucros++; }
 
     // 5. Rendimentos (somados por mês) e tarifas
